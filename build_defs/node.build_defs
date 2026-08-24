@@ -1,0 +1,87 @@
+"""Node.js toolchain rules for the Please build system.
+
+This plugin does one thing: fetch a Node.js distribution for the host platform
+and expose node, npm, npx and corepack as entry points. It has no opinions about
+JavaScript, so a ruleset that needs a hermetic node can depend on it without
+inheriting a build system for JS.
+"""
+
+# --- BEGIN GENERATED VERSIONS ---
+# Hashes come from https://nodejs.org/dist/v<version>/SHASUMS256.txt.
+# Please's `hashes` argument passes if ANY entry matches, so node_toolchain hands
+# it every platform's hash and the running platform's download is the one that
+# has to match. Regenerate rather than hand-editing.
+NODE_VERSIONS = {
+    "22.23.2": {
+        "darwin-arm64": "61130f394c1630d211dd50aecc4353d379480f36d3ac913cd85dbba1aed585c6",
+        "darwin-x64": "58e99022c2ff89395576cc7fd4d98cea24bb68081475d5f88b801ee8729fb026",
+        "linux-arm64": "013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30",
+        "linux-x64": "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
+    },
+}
+# --- END GENERATED VERSIONS ---
+
+def node_toolchain(name:str, version:str="", hashes:list=None,
+                   visibility:list=["PUBLIC"]):
+    """Downloads a Node.js distribution and exposes its binaries as entry points.
+
+    To use the result, point the plugin config at it:
+
+        [Plugin "node"]
+        NodeTool = //third_party/node:node|node
+
+    Args:
+        name: Name of the rule.
+        version: Node.js version, e.g. "22.23.2". Defaults to the DefaultVersion config.
+        hashes: Download hashes. Defaults to the pinned hashes for `version`.
+        visibility: Visibility specification.
+    """
+    version = version or CONFIG.NODE.DEFAULT_VERSION
+    plat = _node_platform()
+
+    if not hashes:
+        if version not in NODE_VERSIONS:
+            fail("No pinned hashes for Node.js " + version + ". Known versions: " +
+                 ", ".join(sorted(NODE_VERSIONS.keys())) +
+                 ". Pass hashes explicitly, or add the version to node.build_defs.")
+        known = NODE_VERSIONS[version]
+        hashes = [known[k] for k in sorted(known.keys())]
+
+    dist = f"node-v{version}-{plat}"
+
+    download = remote_file(
+        name = tag(name, "download"),
+        url = f"https://nodejs.org/dist/v{version}/{dist}.tar.gz",
+        out = tag(name, "dist"),
+        hashes = hashes,
+        extract = True,
+    )
+
+    return build_rule(
+        name = name,
+        srcs = [download],
+        outs = [name],
+        cmd = f"mv $SRCS/{dist} $OUT",
+        # node is a real binary. npm, npx and corepack are JavaScript: bin/ holds
+        # symlinks to .js files whose `#!/usr/bin/env node` shebang resolves node
+        # from $PATH, so those entries would silently run the host's node. Point
+        # at the scripts themselves; callers run them as `$TOOLS_NODE $TOOLS_NPM`.
+        entry_points = {
+            "node": f"{name}/bin/node",
+            "npm": f"{name}/lib/node_modules/npm/bin/npm-cli.js",
+            "npx": f"{name}/lib/node_modules/npm/bin/npx-cli.js",
+            "corepack": f"{name}/lib/node_modules/corepack/dist/corepack.js",
+        },
+        binary = True,
+        visibility = visibility,
+        labels = ["node:" + version],
+        building_description = "Installing Node.js...",
+    )
+
+
+def _node_platform():
+    """Maps Please's OS/ARCH onto the platform string in Node.js download URLs."""
+    arch = "x64" if CONFIG.ARCH == "amd64" else CONFIG.ARCH
+    if CONFIG.OS not in ["linux", "darwin"]:
+        fail("node_toolchain supports linux and darwin only, not " + CONFIG.OS)
+    return f"{CONFIG.OS}-{arch}"
