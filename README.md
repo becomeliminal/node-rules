@@ -52,6 +52,8 @@ NpmTool = //third_party/node:node|npm
 JavaScript**, so they are run *through* node:
 
 ```python
+subinclude("///node//build_defs:node")
+
 build_rule(
     name = "example",
     outs = ["out.txt"],
@@ -62,6 +64,11 @@ build_rule(
     },
 )
 ```
+
+The `subinclude` is required in every `BUILD` file that reads `CONFIG.NODE`, not
+only in ones calling `node_toolchain` — the config namespace is scoped to files
+that have loaded the plugin. A downstream ruleset gets this for free by
+subincluding `///node//build_defs:node` from its own `build_defs`.
 
 The Node.js tarball ships `bin/npm` as a symlink to a `.js` file carrying a
 `#!/usr/bin/env node` shebang, so invoking `bin/npm` directly resolves node from
