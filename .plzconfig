@@ -22,3 +22,5 @@ DefaultValue = 22.23.2
 Help = Node.js version used when node_toolchain is called without an explicit version.
 Inherit = true
 
+[Plugin "node"]
+Target = //plugins:node
