@@ -21,6 +21,32 @@ NODE_VERSIONS = {
 }
 # --- END GENERATED VERSIONS ---
 
+def _fetch_archive(url:str, dest:str, hashes:list):
+    """Shell: download url to dest, check its sha256, extract, and delete dest.
+
+    dest is in the action temp dir, so the tarball is not an output. A
+    remote_file cannot arrange that: its output is the archive, and deleting
+    it afterwards only makes Please fetch it again. Any listed hash may match.
+    The action that runs this is local and unsandboxed, because the fetch
+    needs the network.
+    """
+    qdest = "'" + dest.replace("'", "'\\''") + "'"
+    qurl = "'" + url.replace("'", "'\\''") + "'"
+    # _archive is not an output. Please creates the parent of every output
+    # before the action runs, and an entry of that name would collide with it.
+    fetch = "curl -fsSL --retry 5 --retry-delay 2 -o %s %s" % (qdest, qurl)
+    extract = "mkdir -p _archive && tar -xzf %s -C _archive && rm -f %s" % (qdest, qdest)
+    digest = "digest=$(if command -v sha256sum >/dev/null 2>&1; then sha256sum %s | awk '{print $1}'; else openssl dgst -sha256 %s | awk '{print $NF}'; fi)" % (qdest, qdest)
+    checks = []
+    for h in hashes:
+        if ":" in h:
+            _, _, h = h.rpartition(":")
+            h = h.strip()
+        checks.append("[ \"$digest\" = '%s' ]" % h)
+    verify = "{ { " + " || ".join(checks) + "; } || { echo \"bad hash for " + url + ": $digest\" >&2; exit 1; }; }"
+    return " && ".join([fetch, digest, verify, extract])
+
+
 def node_toolchain(name:str, version:str="", hashes:list=None,
                    visibility:list=["PUBLIC"]):
     """Downloads a Node.js distribution and exposes its binaries as entry points.
@@ -49,19 +75,19 @@ def node_toolchain(name:str, version:str="", hashes:list=None,
 
     dist = f"node-v{version}-{plat}"
 
-    download = remote_file(
-        name = tag(name, "download"),
-        url = f"https://nodejs.org/dist/v{version}/{dist}.tar.gz",
-        out = tag(name, "dist"),
-        hashes = hashes,
-        extract = True,
-    )
-
+    # The tarball is downloaded here and removed before the action finishes.
+    # A remote_file extracted into its own target, and the whole distribution
+    # was then moved into this one, so the dist was stored twice and the
+    # tarball a third time.
     return build_rule(
         name = name,
-        srcs = [download],
         outs = [name],
-        cmd = f"mv $SRCS/{dist} $OUT",
+        local = True,
+        sandbox = False,
+        cmd = " && ".join([
+            _fetch_archive(f"https://nodejs.org/dist/v{version}/{dist}.tar.gz", "node.tar.gz", hashes),
+            f"mv _archive/{dist} $OUT",
+        ]),
         # node is a real binary. npm, npx and corepack are JavaScript: bin/ holds
         # symlinks to .js files whose `#!/usr/bin/env node` shebang resolves node
         # from $PATH, so those entries would silently run the host's node. Point
