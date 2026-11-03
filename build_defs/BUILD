@@ -5,7 +5,13 @@ filegroup(
 )
 
 filegroup(
-    name = "native_tools",
-    srcs = ["native_tools.build_defs"],
+    name = "bun",
+    srcs = ["bun.build_defs"],
+    visibility = ["PUBLIC"],
+)
+
+filegroup(
+    name = "oxlint",
+    srcs = ["oxlint.build_defs"],
     visibility = ["PUBLIC"],
 )

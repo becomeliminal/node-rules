@@ -1,0 +1,62 @@
+"""Pinned Bun distribution for Please actions."""
+
+# SHA256 values are from the immutable bun-v1.4.4 GitHub release assets.
+# x64 uses Bun's baseline build so AVX2 is not required.
+BUN_VERSIONS = {
+    "1.4.4": {
+        "darwin-arm64": ("bun-darwin-aarch64.zip", "c240d7f0ccb90c263a849fcdb09b7ee62630d921348ed6aafda86b9d577bc510"),
+        "darwin-x64": ("bun-darwin-x64-baseline.zip", "d4a155adfbfd09155eb3ba05c9e3a544f39297d7a68616d3c7759f67ab5c47dc"),
+        "linux-arm64": ("bun-linux-aarch64.zip", "baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e"),
+        "linux-x64": ("bun-linux-x64-baseline.zip", "e0446eb55995772eb9894bebae9a6be368d985a8b9271ee124486f9946eedd76"),
+    },
+}
+
+
+def _bun_platform():
+    if CONFIG.OS not in ["linux", "darwin"]:
+        fail("bun_toolchain supports linux and darwin only, not " + CONFIG.OS)
+    if CONFIG.ARCH == "amd64":
+        arch = "x64"
+    elif CONFIG.ARCH == "arm64":
+        arch = "arm64"
+    else:
+        fail("bun_toolchain does not support architecture " + CONFIG.ARCH)
+    return CONFIG.OS + "-" + arch
+
+
+def bun_toolchain(name:str, version:str, visibility:list=["PUBLIC"]):
+    """Download verified Bun and expose its native `bun` entry point.
+
+    Usage: bun_toolchain(name = "bun", version = "1.4.4")
+    """
+    if version not in BUN_VERSIONS:
+        fail("No pinned Bun hashes for " + version + ". Known versions: " +
+             ", ".join(sorted(BUN_VERSIONS.keys())))
+    platform = _bun_platform()
+    pin = BUN_VERSIONS[version][platform]
+    archive = pin[0]
+    hash = pin[1]
+    url = "https://github.com/oven-sh/bun/releases/download/bun-v" + version + "/" + archive
+    directory = archive[:-4]
+    cmd = " && ".join([
+        "curl -fsSL --retry 5 --retry-delay 2 -o bun.zip '" + url + "'",
+        "digest=$(if command -v sha256sum >/dev/null 2>&1; then sha256sum bun.zip | awk '{print $1}'; else openssl dgst -sha256 bun.zip | awk '{print $NF}'; fi)",
+        "{ [ \"$digest\" = '" + hash + "' ] || { echo 'bad hash for " + url + "' >&2; exit 1; }; }",
+        "mkdir -p _archive $OUT",
+        "unzip -q bun.zip -d _archive",
+        "mv _archive/" + directory + "/bun $OUT/bun",
+        "chmod +x $OUT/bun",
+        "rm -f bun.zip",
+    ])
+    return build_rule(
+        name = name,
+        outs = [name],
+        cmd = cmd,
+        entry_points = {"bun": name + "/bun"},
+        binary = True,
+        local = True,
+        sandbox = False,
+        visibility = visibility,
+        labels = ["bun:" + version],
+        building_description = "Installing Bun v" + version + "...",
+    )

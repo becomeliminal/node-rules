@@ -36,13 +36,20 @@ node_toolchain(
 )
 ```
 
-Declare Bun and OXLint in their own BUILD files:
+Declare Bun in `third_party/bun/BUILD`:
 
 ```python
-subinclude("///node//build_defs:native_tools")
+subinclude("///node//build_defs:bun")
 
-bun_toolchain(name = "bun")
-oxlint_toolchain(name = "oxlint")
+bun_toolchain(name = "bun", version = "1.4.4")
+```
+
+Declare OXLint in `third_party/oxlint/BUILD`:
+
+```python
+subinclude("///node//build_defs:oxlint")
+
+oxlint_toolchain(name = "oxlint", version = "1.91.0")
 ```
 
 Then point the plugin config at it, so rules can find it:
@@ -90,7 +97,7 @@ downloaded tree is left byte-identical to what nodejs.org shipped.
 directly; no host Node.js executable or package installation is needed:
 
 ```python
-subinclude("///node//build_defs:native_tools")
+subinclude("///node//build_defs:bun")
 
 build_rule(
     name = "check",
@@ -101,9 +108,9 @@ build_rule(
 )
 ```
 
-Subinclude `///node//build_defs:native_tools` in each BUILD file that reads the
-native tool config keys. The default targets live in `third_party/bun/BUILD`
-and `third_party/oxlint/BUILD` within this plugin.
+Subinclude `///node//build_defs:bun` or `///node//build_defs:oxlint` in each
+BUILD file that reads the respective config key. The default targets live in
+`third_party/bun/BUILD` and `third_party/oxlint/BUILD` within this plugin.
 
 ## Configuration
 
@@ -114,8 +121,6 @@ and `third_party/oxlint/BUILD` within this plugin.
 | `DefaultVersion` | `22.23.2` | Version used when `node_toolchain` is called without one |
 | `BunTool` | `///node//third_party/bun:bun\|bun` | Build label for the Bun binary |
 | `OxlintTool` | `///node//third_party/oxlint:oxlint\|oxlint` | Build label for the OXLint binary |
-| `DefaultBunVersion` | `1.4.4` | Version used when `bun_toolchain` is called without one |
-| `DefaultOxlintVersion` | `1.91.0` | Version used when `oxlint_toolchain` is called without one |
 
 ## Versions
 
@@ -135,9 +140,10 @@ that is not pinned, pass `hashes` explicitly.
 
 Supported platforms: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`.
 
-`bun_toolchain` and `oxlint_toolchain` carry SHA256 hashes of the official Bun
-and OXLint release archives in `build_defs/native_tools.build_defs`. The same
-four platforms are supported. Bun's x64 baseline archives work on CPUs without
-AVX2. Linux OXLint uses the glibc archives. Unsupported platforms and versions
-fail during rule evaluation. The exact version, archive URL and digest are in
-the action command, so a pin change invalidates its cache key.
+`bun_toolchain` and `oxlint_toolchain` carry SHA256 hashes of their official
+release archives in `build_defs/bun.build_defs` and
+`build_defs/oxlint.build_defs`. Each rule requires an explicit version. The
+same four platforms are supported. Bun's x64 baseline archives work on CPUs
+without AVX2. Linux OXLint uses the glibc archives. Unsupported platforms and
+versions fail during rule evaluation. The exact version, archive URL and digest
+are in the action command, so a pin change invalidates its cache key.

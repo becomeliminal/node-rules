@@ -22,18 +22,6 @@ DefaultValue = 22.23.2
 Help = Node.js version used when node_toolchain is called without an explicit version.
 Inherit = true
 
-[PluginConfig "default_bun_version"]
-ConfigKey = DefaultBunVersion
-DefaultValue = 1.4.4
-Help = Bun version used when bun_toolchain is called without an explicit version.
-Inherit = true
-
-[PluginConfig "default_oxlint_version"]
-ConfigKey = DefaultOxlintVersion
-DefaultValue = 1.91.0
-Help = OXLint version used when oxlint_toolchain is called without an explicit version.
-Inherit = true
-
 [PluginConfig "bun_tool"]
 ConfigKey = BunTool
 DefaultValue = ///node//third_party/bun:bun|bun
