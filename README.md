@@ -1,11 +1,10 @@
 # node-rules
 
-A Node.js toolchain for the [Please](https://please.build) build system.
+A Node.js, Bun and OXLint toolchain for the [Please](https://please.build) build system.
 
-This plugin does one thing: fetch a Node.js distribution for the host platform
-and expose `node`, `npm`, `npx` and `corepack` as entry points. It has no
-opinions about JavaScript, so a ruleset that needs a hermetic node can depend on
-it without inheriting a build system for JS.
+This plugin fetches pinned native executables for the host platform. It exposes
+`node`, `npm`, `npx`, `corepack`, `bun` and `oxlint` as entry points. It has no
+opinions about how JavaScript is built, checked or linted.
 
 ## Install
 
@@ -37,6 +36,22 @@ node_toolchain(
 )
 ```
 
+Declare Bun in `third_party/bun/BUILD`:
+
+```python
+subinclude("///node//build_defs:bun")
+
+bun_toolchain(name = "bun", version = "1.4.4")
+```
+
+Declare OXLint in `third_party/oxlint/BUILD`:
+
+```python
+subinclude("///node//build_defs:oxlint")
+
+oxlint_toolchain(name = "oxlint", version = "1.91.0")
+```
+
 Then point the plugin config at it, so rules can find it:
 
 ```ini
@@ -44,6 +59,8 @@ Then point the plugin config at it, so rules can find it:
 Target = //plugins:node
 NodeTool = //third_party/node:node|node
 NpmTool = //third_party/node:node|npm
+BunTool = //third_party/bun:bun|bun
+OxlintTool = //third_party/oxlint:oxlint|oxlint
 ```
 
 ## Using it in a rule
@@ -76,6 +93,25 @@ The Node.js tarball ships `bin/npm` as a symlink to a `.js` file carrying a
 there is not. The entry points therefore name the scripts themselves, and the
 downloaded tree is left byte-identical to what nodejs.org shipped.
 
+`bun` and `oxlint` are native binaries. Declare them as tools and invoke them
+directly; no host Node.js executable or package installation is needed:
+
+```python
+subinclude("///node//build_defs:bun")
+
+build_rule(
+    name = "check",
+    srcs = ["src/example.ts"],
+    outs = ["check.stamp"],
+    tools = {"bun": [CONFIG.NODE.BUN_TOOL]},
+    cmd = "$TOOLS_BUN --version > $OUT",
+)
+```
+
+Subinclude `///node//build_defs:bun` or `///node//build_defs:oxlint` in each
+BUILD file that reads the respective config key. The default targets live in
+`third_party/bun/BUILD` and `third_party/oxlint/BUILD` within this plugin.
+
 ## Configuration
 
 | Config key | Default | Meaning |
@@ -83,6 +119,8 @@ downloaded tree is left byte-identical to what nodejs.org shipped.
 | `NodeTool` | `///node//third_party/node:node\|node` | Build label for the node binary |
 | `NpmTool` | `///node//third_party/node:node\|npm` | Build label for the npm CLI |
 | `DefaultVersion` | `22.23.2` | Version used when `node_toolchain` is called without one |
+| `BunTool` | `///node//third_party/bun:bun\|bun` | Build label for the Bun binary |
+| `OxlintTool` | `///node//third_party/oxlint:oxlint\|oxlint` | Build label for the OXLint binary |
 
 ## Versions
 
@@ -101,3 +139,11 @@ the generated block at the top of `build_defs/node.build_defs`. To use a release
 that is not pinned, pass `hashes` explicitly.
 
 Supported platforms: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`.
+
+`bun_toolchain` and `oxlint_toolchain` carry SHA256 hashes of their official
+release archives in `build_defs/bun.build_defs` and
+`build_defs/oxlint.build_defs`. Each rule requires an explicit version. The
+same four platforms are supported. Bun's x64 baseline archives work on CPUs
+without AVX2. Linux OXLint uses the glibc archives. Unsupported platforms and
+versions fail during rule evaluation. The exact version, archive URL and digest
+are in the action command, so a pin change invalidates its cache key.

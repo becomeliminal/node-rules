@@ -22,14 +22,9 @@ DEFAULT_URL_BASE='https://get.please.build'
 
 OS="$(uname)"
 
-if [ "${OS}" = 'Darwin' ]; then
-    # switch between mac amd64/arm64
-    ARCH="$(uname -m)"
-else
-    # default to amd64 on other operating systems
-    # because we only build intel binaries
-    ARCH='amd64'
-fi
+# Select the host architecture on Linux and macOS. Please publishes arm64
+# binaries for both, so a Linux arm64 runner must not receive an amd64 binary.
+ARCH="$(uname -m)"
 
 case "${ARCH}" in
     aarch64_be|aarch64|armv8b|armv8l) ARCH='arm64' ;;
