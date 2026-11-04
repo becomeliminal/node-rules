@@ -28,11 +28,5 @@ DefaultValue = ///node//third_party/bun:bun|bun
 Help = Build label for the Bun binary, from bun_toolchain.
 Inherit = true
 
-[PluginConfig "oxlint_tool"]
-ConfigKey = OxlintTool
-DefaultValue = ///node//third_party/oxlint:oxlint|oxlint
-Help = Build label for the OXLint binary, from oxlint_toolchain.
-Inherit = true
-
 [Plugin "node"]
 Target = //plugins:node
