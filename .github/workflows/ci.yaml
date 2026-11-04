@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build toolchains
-        run: ./pleasew build //third_party/node:node //third_party/bun:bun //third_party/oxlint:oxlint
+        run: ./pleasew build //third_party/node:node //third_party/bun:bun
       - name: Test toolchains
         run: ./pleasew test //test/...
       - name: Format
